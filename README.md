@@ -1,6 +1,6 @@
 # mini-ai
 
-![Alt text](public/miniai.gif?raw=true "Demo")
+![Alt text](https://github.com/dncc89/mini-ai/blob/main/public/miniai.gif?raw=true, "Demo")
 
 A minimalist code assistant powered by GPT, inspired by [ai.vim](https://github.com/aduros/ai.vim). mini-ai provides a seamless interface for AI-powered text modification and completion, enhancing your coding experience.
 
