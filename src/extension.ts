@@ -50,16 +50,11 @@ async function processAICommand(context: vscode.ExtensionContext, userInput: str
 		const selection = editor.selection;
 		const config = vscode.workspace.getConfiguration('mini-ai');
 		const useGPT4 = config.get<boolean>('useGPT4') || false;
-		let gptmodel = 'gpt-3.5-turbo';
+		let gptmodel = useGPT4 ? 'gpt-4' : 'gpt-3.5-turbo';
 
-		// If useGPT4 is true, add # to userInput
-		if (useGPT4) {
-			userInput = '# ' + userInput;
-		}
-
-		// If userinput starts with #, use gpt-3.5-turbo model
+		// If userinput starts with #, flip the model 
 		if (userInput.startsWith('#')) {
-			gptmodel = 'gpt-4';
+			gptmodel = useGPT4 ? 'gpt-3.5-turbo' : 'gpt-4';
 			userInput = userInput.slice(1);
 		}
 		userInput = userInput.trimStart();
@@ -135,14 +130,14 @@ function generatePayload(text: string, userInput: string, isEmpty: boolean = fal
 	if (isEmpty) {
 		messageList.push({
 			role: 'system',
-			content: `You generate code or text for ${language}. Only return added text. No context needed. Never use a code block.`
+			content: `You are a code/text generator for ${language}. Only return added text. No context needed. Never use a code block.`
 		});
 
 	}
 	else {
 		messageList.push({
 			role: 'system',
-			content: `You you generate code or text for ${language}. Only return the requested modification. No context needed. Never use a code block.`
+			content: `You are a code/text generator for ${language}. Only return the requested modification. No context needed. Never use a code block.`
 		});
 	}
 
@@ -155,7 +150,7 @@ function generatePayload(text: string, userInput: string, isEmpty: boolean = fal
 	else {
 		messageList.push({
 			role: 'user',
-			content: `Fill text in this: ${text}`
+			content: `Fill text in this context: ${text}`
 		});
 	}
 	return messageList;

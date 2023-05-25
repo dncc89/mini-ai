@@ -3,7 +3,7 @@
   "publisher": "DavidShin",
   "displayName": "mini-ai",
   "description": "Minimalist code assistant for VSCode",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.78.0"
   },
@@ -18,8 +18,8 @@
       "properties": {
         "mini-ai.useGPT4": {
           "type": "boolean",
-          "default": true,
-          "description": "Use GPT4 as default. This adds # as prefix in the prompt."
+          "default": false,
+          "description": "Use GPT-4(Quality) as default. This flips # prefix to use GPT3.5 Turbo(Speed)."
         }
       }
     },
