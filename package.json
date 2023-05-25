@@ -1,5 +1,6 @@
 {
   "name": "mini-ai",
+  "publisher": "David Shin",
   "displayName": "mini-ai",
   "description": "Minimalist code assistant for VSCode",
   "version": "0.0.1",
