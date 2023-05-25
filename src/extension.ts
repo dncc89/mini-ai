@@ -94,22 +94,25 @@ type ChatCompletionMessage = {
 }
 
 function generatePayload(text: string, userInput: string, isFill: boolean = false) {
+	const language = getLanguageID();
+	const symbols = getDocumentSymbols();
+
 	let messageList = new Array<ChatCompletionMessage>();
 
 	if (isFill) {
 		messageList.push({
 			role: 'system',
-			content: `You are a code assistant. Do not write any comment or explanation, only return the text where user requested to fill. Never use a code block. ${userInput}`
+			content: `You are a code assistant for ${language}. Symbols of this file: ${symbols} \nDo not write any comment or explanation, only return the text where user requested to fill. Never use a code block.`
 		});
 	}
 	else {
 		messageList.push({
 			role: 'system',
-			content: `You are a code assistant. Do not write any comment or explanation, only return the requested modification of code or text. Never use a code block. ${userInput}`
+			content: `You are a code assistant for ${language}. Symbols of this file: ${symbols} \nDo not write any comment or explanation, only return the requested modification of code or text. Never use a code block.`
 		});
 	}
 
-	messageList.push({ role: 'user', content: text });
+	messageList.push({ role: 'user', content: `Request: ${userInput} \nContext: \`\`\`${text}\`\`\`` });
 
 	return messageList;
 }
@@ -118,6 +121,53 @@ function getTextBlock(document: vscode.TextDocument, position: vscode.Position):
 	return document.lineAt(position.line).text;
 }
 
+function getLanguageID() {
+	const activeEditor = vscode.window.activeTextEditor;
+	// Get the language of the current open file
+	if (activeEditor) {
+		const languageId = activeEditor.document.languageId;
+		return languageId;
+	}
+	return 'PlainText';
+}
+
+async function getDocumentSymbols() {
+	// Get the active text editor
+	const activeEditor = vscode.window.activeTextEditor;
+
+	// Get the symbols in the current open file
+	if (activeEditor) {
+		const uri = activeEditor.document.uri;
+		const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>('vscode.executeDocumentSymbolProvider', uri);
+
+		let symbolString = '';
+
+		if (symbols) {
+			for (const symbol of symbols) {
+				const symbolName = symbol.name;
+				const symbolKind = vscode.SymbolKind[symbol.kind];
+
+				// Skip symbols with unknown kind
+				if (symbol.kind === vscode.SymbolKind.Unknown) {
+					continue;
+				}
+
+				// Concatenate symbol name and kind with a separator
+				const symbolInfo = `${symbolName} (${symbolKind})`;
+
+				// Check the length of the string and limit it to 500 characters
+				if (symbolString.length + symbolInfo.length + 2 > 500) {
+					break;
+				}
+
+				// Add the current symbol info to the string, separated by new line 
+				symbolString += (symbolString.length > 0 ? '\n' : '') + symbolInfo;
+			}
+		}
+		return `\`\`\`${symbolString}\`\`\``;
+	}
+	return '\`\`\`No symbols found\`\`\`';
+}
 
 const getChatCompletionStreaming = async (sendMessages: ChatCompletionMessage[], apiKey: string, gptmodel: string): Promise<string> => {
 	try {
