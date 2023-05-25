@@ -1,6 +1,6 @@
-# minigpt README
+# mini-ai README
 
-This is the README for your extension "minigpt". After writing up a brief description, we recommend including the following sections.
+This is the README for your extension "mini-ai". After writing up a brief description, we recommend including the following sections.
 
 ## Features
 

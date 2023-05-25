@@ -3,17 +3,27 @@ const fetch = require('cross-fetch');
 const { TextDecoder } = require('util');
 const { Writable } = require('stream');
 
-
 export function activate(context: vscode.ExtensionContext) {
-	let disposableAskAI = vscode.commands.registerCommand('minigpt.askAI', async () => {
+	let disposableAskAI = vscode.commands.registerCommand('mini-ai.askAI', async () => {
+		let cancelled = false;
 		let userInput = await vscode.window.showInputBox({
-			title: 'MiniGPT: What do you want to do?',
-			prompt: 'Start with # to use GPT-4.'
-		}) || '';
-		await processAICommand(context, userInput);
+			prompt: '🚀 What\'s on your mind? You can leave it empty to see what happens!\n'
+		}).then(value => {
+			if (value === undefined) {
+				cancelled = true;
+				return '';
+			}
+			else {
+				return value;
+			}
+		});
+
+		if (!cancelled) {
+			await processAICommand(context, userInput);
+		}
 	});
 
-	let disposableSetKey = vscode.commands.registerCommand('minigpt.setAPIKey', async () => {
+	let disposableSetKey = vscode.commands.registerCommand('mini-ai.setAPIKey', async () => {
 		let apiKey = await vscode.window.showInputBox({ prompt: 'Enter OpenAI API Key' });
 
 		if (apiKey) {
@@ -32,36 +42,56 @@ async function processAICommand(context: vscode.ExtensionContext, userInput: str
 	const editor = vscode.window.activeTextEditor;
 
 	if (editor) {
-		let document = editor.document;
-		let selection = editor.selection;
+		const document = editor.document;
+		const selection = editor.selection;
+		const config = vscode.workspace.getConfiguration('mini-ai');
+		const useGPT4 = config.get<boolean>('useGPT4') || false;
 		let gptmodel = 'gpt-3.5-turbo';
+
+		// If useGPT4 is true, add # to userInput
+		if (useGPT4) {
+			userInput = '# ' + userInput;
+		}
 
 		// If userinput starts with #, use gpt-3.5-turbo model
 		if (userInput.startsWith('#')) {
 			gptmodel = 'gpt-4';
 			userInput = userInput.slice(1);
 		}
+		userInput = userInput.trimStart();
 
 		// Selected text
 		let text: string;
 
-		// Check if there's a selection, if not, take the text block around the cursor
-		if (selection.isEmpty) {
-			text = getTextBlock(document, editor.selection.active);
+		if (!selection.isEmpty) {
+			// Retrieve selected text
+			text = editor.document.getText(selection);
 		} else {
-			text = document.getText(selection);
+			// Retrieve text before and after the cursor
+			// Retrieve lines before and after the cursor
+			const cursorPosition = editor.selection.active;
+			const document = editor.document;
+
+			const startLine = Math.max(cursorPosition.line - 5, 0);
+			const endLine = Math.min(cursorPosition.line + 5, document.lineCount - 1);
+
+			let textBeforeCursor = '';
+			for (let line = startLine; line < cursorPosition.line; line++) {
+				textBeforeCursor += document.lineAt(line).text + '\n';
+			}
+
+			let textAfterCursor = '';
+			for (let line = cursorPosition.line + 1; line <= endLine; line++) {
+				textAfterCursor += document.lineAt(line).text + '\n';
+			}
+			const cursorMarker = '<fill here>';
+			text = `${textBeforeCursor}\n${cursorMarker}\n${textAfterCursor}`;
 		}
 
 		// Return if text and userinput length is 0
 		if (text.length === 0 && userInput.length === 0) {
 			return;
 		}
-
-		// Mark where the cursor is
-		let cursorOffset = editor.document.offsetAt(editor.selection.active);
-		let selectionStartOffset = editor.document.offsetAt(new vscode.Position(selection.start.line, 0));
-		let cursorPositionInSelection = cursorOffset - selectionStartOffset;
-		text = text.slice(0, cursorPositionInSelection) + '{Your text goes here}' + text.slice(cursorPositionInSelection);
 
 		// Ensure API key exists
 		const openAIKey = context.globalState.get<string>('openAIKey');
@@ -72,10 +102,12 @@ async function processAICommand(context: vscode.ExtensionContext, userInput: str
 
 		try {
 			// Generate payload and make a request
-			let payload = generatePayload(text, userInput, !selection.isEmpty);
+			let payload = generatePayload(text, userInput, selection.isEmpty);
 			let completion = await getChatCompletionStreaming(payload, openAIKey, gptmodel);
 
 			if (completion.length > 0) {
+				// Clean up if completion is wrapped in code box
+				completion = completion.replace(/```/g, '');
 				// Replace the selected text with the completion
 				editor.edit((editBuilder) => {
 					editBuilder.replace(selection, completion);
@@ -91,29 +123,38 @@ async function processAICommand(context: vscode.ExtensionContext, userInput: str
 type ChatCompletionMessage = {
 	role: "system" | "user" | "assistant";
 	content: string
-}
+};
 
-function generatePayload(text: string, userInput: string, isFill: boolean = false) {
+function generatePayload(text: string, userInput: string, isEmpty: boolean = false) {
 	const language = getLanguageID();
-	const symbols = getDocumentSymbols();
-
 	let messageList = new Array<ChatCompletionMessage>();
 
-	if (isFill) {
+	if (isEmpty) {
 		messageList.push({
 			role: 'system',
-			content: `You are a code assistant for ${language}. Symbols of this file: ${symbols} \nDo not write any comment or explanation, only return the text where user requested to fill. Never use a code block.`
+			content: `You generate code or text for ${language}. Only return added text. No context needed. Never use a code block.`
 		});
+
 	}
 	else {
 		messageList.push({
 			role: 'system',
-			content: `You are a code assistant for ${language}. Symbols of this file: ${symbols} \nDo not write any comment or explanation, only return the requested modification of code or text. Never use a code block.`
+			content: `You you generate code or text for ${language}. Only return the requested modification. No context needed. Never use a code block.`
 		});
 	}
 
-	messageList.push({ role: 'user', content: `Request: ${userInput} \nContext: \`\`\`${text}\`\`\`` });
-
+	if (userInput.length > 0) {
+		messageList.push({
+			role: 'user',
+			content: `<Request: ${userInput}> \n<Context: ${text}>`
+		});
+	}
+	else {
+		messageList.push({
+			role: 'user',
+			content: `Fill text in this: ${text}`
+		});
+	}
 	return messageList;
 }
 
@@ -131,53 +172,15 @@ function getLanguageID() {
 	return 'PlainText';
 }
 
-async function getDocumentSymbols() {
-	// Get the active text editor
-	const activeEditor = vscode.window.activeTextEditor;
-
-	// Get the symbols in the current open file
-	if (activeEditor) {
-		const uri = activeEditor.document.uri;
-		const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>('vscode.executeDocumentSymbolProvider', uri);
-
-		let symbolString = '';
-
-		if (symbols) {
-			for (const symbol of symbols) {
-				const symbolName = symbol.name;
-				const symbolKind = vscode.SymbolKind[symbol.kind];
-
-				// Skip symbols with unknown kind
-				if (symbol.kind === vscode.SymbolKind.Unknown) {
-					continue;
-				}
-
-				// Concatenate symbol name and kind with a separator
-				const symbolInfo = `${symbolName} (${symbolKind})`;
-
-				// Check the length of the string and limit it to 500 characters
-				if (symbolString.length + symbolInfo.length + 2 > 500) {
-					break;
-				}
-
-				// Add the current symbol info to the string, separated by new line 
-				symbolString += (symbolString.length > 0 ? '\n' : '') + symbolInfo;
-			}
-		}
-		return `\`\`\`${symbolString}\`\`\``;
-	}
-	return '\`\`\`No symbols found\`\`\`';
-}
-
 const getChatCompletionStreaming = async (sendMessages: ChatCompletionMessage[], apiKey: string, gptmodel: string): Promise<string> => {
 	try {
-		let content = ''
-		const title = gptmodel === 'gpt-4' ? 'GPT-4' : 'GPT-3.5 Turbo'
+		let content = '';
+		const title = gptmodel === 'gpt-4' ? 'Quality' : 'Speed';
 
 		// Initialize progress options
 		const progressOptions: vscode.ProgressOptions = {
 			location: vscode.ProgressLocation.Notification,
-			title: `(${title}) Thinking`,
+			title: `(${title} Mode)`,
 			cancellable: false,
 		};
 
@@ -223,6 +226,11 @@ const getChatCompletionStreaming = async (sendMessages: ChatCompletionMessage[],
 						writable.end();
 						break;
 					}
+					// List of emojis, robot, brain, and thinking face
+					const emojis = ['🤖', '🗿', '🧠', '🤔', '🤯', '👀', '💭', '💡', '🔮', '🎲', '🌀', '🎭', '🍄'];
+
+					// Pick random emoji
+					const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
 
 					if (!line.startsWith("data:")) continue;
 					const jsonData = JSON.parse(line.slice(5));
@@ -234,10 +242,10 @@ const getChatCompletionStreaming = async (sendMessages: ChatCompletionMessage[],
 					if (content.length > 30) {
 						// show last 30 characters 
 						const shortContent = content.slice(content.length - 30);
-						progress.report({ message: `"...${shortContent}"` });
+						progress.report({ message: `${randomEmoji} ...${shortContent}` });
 					}
 					else {
-						progress.report({ message: `"${content}"` });
+						progress.report({ message: `${randomEmoji} ${content}` });
 					}
 
 				}

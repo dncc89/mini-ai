@@ -1,6 +1,6 @@
 {
-  "name": "minigpt",
-  "displayName": "minigpt",
+  "name": "mini-ai",
+  "displayName": "mini-ai",
   "description": "Minimalist code assistant for VSCode",
   "version": "0.0.1",
   "engines": {
@@ -12,14 +12,24 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "mini-ai",
+      "properties": {
+        "mini-ai.useGPT4": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use GPT4 as default. This adds # as prefix in the prompt."
+        }
+      }
+    },
     "commands": [
       {
-        "command": "minigpt.askAI",
-        "title": "MiniGPT: Ask AI"
+        "command": "mini-ai.askAI",
+        "title": "mini-ai: Ask AI"
       },
       {
-        "command": "minigpt.setAPIKey",
-        "title": "MiniGPT: Set API key"
+        "command": "mini-ai.setAPIKey",
+        "title": "mini-ai: Set API key"
       }
     ]
   },
