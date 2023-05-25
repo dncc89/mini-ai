@@ -24,12 +24,12 @@
     },
     "commands": [
       {
-        "command": "mini-ai.askAI",
-        "title": "mini-ai: Ask AI"
+        "command": "mini-ai.ask",
+        "title": "mini-ai: Ask"
       },
       {
-        "command": "mini-ai.setAPIKey",
-        "title": "mini-ai: Set API key"
+        "command": "mini-ai.setkey",
+        "title": "mini-ai: Set API Key"
       }
     ]
   },

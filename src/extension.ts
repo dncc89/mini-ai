@@ -4,10 +4,10 @@ const { TextDecoder } = require('util');
 const { Writable } = require('stream');
 
 export function activate(context: vscode.ExtensionContext) {
-	let disposableAskAI = vscode.commands.registerCommand('mini-ai.askAI', async () => {
+	let disposableAskAI = vscode.commands.registerCommand('mini-ai.ask', async () => {
 		let cancelled = false;
 		let userInput = await vscode.window.showInputBox({
-			prompt: '🚀 What\'s on your mind? You can leave it empty to see what happens!\n'
+			prompt: '🚀 What\'s on your mind?'
 		}).then(value => {
 			if (value === undefined) {
 				cancelled = true;
@@ -23,11 +23,15 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	let disposableSetKey = vscode.commands.registerCommand('mini-ai.setAPIKey', async () => {
-		let apiKey = await vscode.window.showInputBox({ prompt: 'Enter OpenAI API Key' });
+	const secretStorage: vscode.SecretStorage = context.secrets;
+	let disposableSetKey = vscode.commands.registerCommand('mini-ai.setkey', async () => {
+		let apiKey = await vscode.window.showInputBox({
+			prompt: 'Enter OpenAI API Key',
+			password: true
+		});
 
 		if (apiKey) {
-			context.globalState.update('openAIKey', apiKey);
+			secretStorage.store("openAIKey", apiKey);
 			vscode.window.showInformationMessage('API Key set successfully');
 		}
 	});
@@ -94,8 +98,8 @@ async function processAICommand(context: vscode.ExtensionContext, userInput: str
 		}
 
 		// Ensure API key exists
-		const openAIKey = context.globalState.get<string>('openAIKey');
-		if (!openAIKey) {
+		const apiKey = await context.secrets.get('openAIKey');
+		if (!apiKey) {
 			vscode.window.showErrorMessage('No OpenAI API Key found. Please set it using "Set API Key" command.');
 			return;
 		}
@@ -103,7 +107,7 @@ async function processAICommand(context: vscode.ExtensionContext, userInput: str
 		try {
 			// Generate payload and make a request
 			let payload = generatePayload(text, userInput, selection.isEmpty);
-			let completion = await getChatCompletionStreaming(payload, openAIKey, gptmodel);
+			let completion = await getCompletion(payload, apiKey, gptmodel);
 
 			if (completion.length > 0) {
 				// Clean up if completion is wrapped in code box
@@ -113,7 +117,6 @@ async function processAICommand(context: vscode.ExtensionContext, userInput: str
 					editBuilder.replace(selection, completion);
 				});
 			}
-
 		} catch (error: any) {
 			vscode.window.showErrorMessage(error.message);
 		}
@@ -158,10 +161,6 @@ function generatePayload(text: string, userInput: string, isEmpty: boolean = fal
 	return messageList;
 }
 
-function getTextBlock(document: vscode.TextDocument, position: vscode.Position): string {
-	return document.lineAt(position.line).text;
-}
-
 function getLanguageID() {
 	const activeEditor = vscode.window.activeTextEditor;
 	// Get the language of the current open file
@@ -172,7 +171,7 @@ function getLanguageID() {
 	return 'PlainText';
 }
 
-const getChatCompletionStreaming = async (sendMessages: ChatCompletionMessage[], apiKey: string, gptmodel: string): Promise<string> => {
+const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: string, gptmodel: string): Promise<string> => {
 	try {
 		let content = '';
 		const title = gptmodel === 'gpt-4' ? 'Quality' : 'Speed';
