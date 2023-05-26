@@ -1,9 +1,19 @@
 # Change Log
 
-All notable changes to the "mini-ai" extension will be documented in this file.
+## [0.0.3]
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+- `mini-ai: Ask` is now `mini-ai: Command`
+The shift from `Ask` to `Command` implies a more active, direct interaction, as users give specific commands instead of passively asking.
 
-## [Unreleased]
+- Introducing prompt template!
+You can call saved prompts like quicksilver with the `mini-ai.commandFromTemplates` command.
 
-- Initial release
+- Selected text modification now concerns the context around the selection.
+
+## [0.0.2] 
+
+- Model switching issue was addressed.
+
+## [0.0.1]
+
+- Initial release 🎉🥳

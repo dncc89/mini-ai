@@ -3,7 +3,8 @@
   "publisher": "DavidShin",
   "displayName": "mini-ai",
   "description": "Minimalist code assistant for VSCode",
-  "version": "0.0.2",
+  "version": "0.0.3",
+  "icon": "public/icon.png",
   "engines": {
     "vscode": "^1.78.0"
   },
@@ -19,18 +20,31 @@
         "mini-ai.useGPT4": {
           "type": "boolean",
           "default": false,
-          "description": "Use GPT-4(Quality) as default. This flips # prefix to use GPT3.5 Turbo(Speed)."
+          "description": "Use GPT-4(Quality) as default, this flips # prefix to use GPT3.5 Turbo(Speed)"
+        },
+        "mini-ai.templates": {
+          "type": "array",
+          "default": [
+            "Refactor and optimize this code",
+            "Write a comment for this code",
+            "Translate this text to English"
+          ],
+          "description": "Array of command templates for the Mini AI extension"
         }
       }
     },
     "commands": [
       {
-        "command": "mini-ai.ask",
-        "title": "mini-ai: Ask"
+        "command": "mini-ai.command",
+        "title": "mini-ai: Command"
       },
       {
         "command": "mini-ai.setkey",
         "title": "mini-ai: Set API Key"
+      },
+      {
+        "command": "mini-ai.commandFromTemplates",
+        "title": "mini-ai: Command From Templates"
       }
     ]
   },
