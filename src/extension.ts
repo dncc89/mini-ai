@@ -139,8 +139,10 @@ async function processAICommand(context: vscode.ExtensionContext, userInput: str
 			let completion = await getCompletion(payload, apiKey, gptmodel);
 
 			if (completion.length > 0) {
-				// Clean up and replace the selected text with the completion
 				completion = completion.replace(/```/g, '');
+				completion = completion.replace(/<fill_here>/g, '');
+				completion = completion.replace(/<selection>/g, '');
+				completion = completion.replace(/<\/selection>/g, '');
 
 				editor.edit((editBuilder) => {
 					if (selection.isEmpty && !document.lineAt(selection.start.line).isEmptyOrWhitespace) {
@@ -171,14 +173,14 @@ function generatePayload(text: string, userInput: string, isEmpty: boolean = fal
 	if (isEmpty) {
 		messageList.push({
 			role: 'system',
-			content: `You are a code/text generator for ${language}. Only return added text. Do not include any context. Never use a code block. For questions, use a comment block to reply.`
+			content: `You act as a code generator for ${language}. You will return requested text to fill, nothing else. Do not write explanations, comments, or anything else. You're operating on code editor and your output will be written in the code directly, do not destroy current code with your output. Use comment format if needed.`
 		});
 
 	}
 	else {
 		messageList.push({
 			role: 'system',
-			content: `You are a code/text assistant for ${language}. You perform requested operations for the selected text. Only return the modifications. Do not include any context. Never use a code block. For questions, use a comment block to reply.`
+			content: `You act as a code modifier for ${language}. You will return requested code to modify, nothing else. Do not write explanations, comments, or anything else. You're operating on code editor and your output will be written in the code directly, do not destroy current code with your output. Use comment format if needed.`
 		});
 	}
 
@@ -191,7 +193,7 @@ function generatePayload(text: string, userInput: string, isEmpty: boolean = fal
 	else {
 		messageList.push({
 			role: 'user',
-			content: `Fill text in this context: ${text}`
+			content: `<Request: Fill the text.> \n<Context: ${text}>`
 		});
 	}
 	return messageList;
