@@ -224,7 +224,7 @@ const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: stri
 			cancellable: true,
 		};
 
-		return await vscode.window.withProgress(progressOptions, async (progress) => {
+		return await vscode.window.withProgress(progressOptions, async (progress, token) => {
 			// Send request to API
 			const res = await fetch("https://api.openai.com/v1/chat/completions", {
 				method: "POST",
@@ -261,7 +261,7 @@ const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: stri
 					const line = buffer.slice(0, newlineIndex);
 					buffer = buffer.slice(newlineIndex + 1);
 
-					if (line.includes("[DONE]")) {
+					if (line.includes("[DONE]") || token.isCancellationRequested) {
 						writable.end();
 						break;
 					}
