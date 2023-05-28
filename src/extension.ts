@@ -131,8 +131,6 @@ function processCompletion(completion: string) {
 		completion = completion.replace('\`\`\`', '');
 		completion = completion.replace('```yaml', '');
 		completion = completion.replace('```', '');
-		completion = completion.replace('}', '');
-		completion = completion.replace('{', '');
 
 		if (completion.length === 0) {
 			return;
@@ -149,7 +147,7 @@ function processCompletion(completion: string) {
 				vscode.window.showInformationMessage(`mini-ai: ${yamlObj.comment}`);
 			}
 
-			if (yamlObj.result_output.length > 0) {
+			if (yamlObj.result_output) {
 				editor.edit((editBuilder) => {
 					editBuilder.replace(selection, yamlObj.result_output);
 				});
