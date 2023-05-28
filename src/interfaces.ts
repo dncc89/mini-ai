@@ -7,6 +7,6 @@ export type YamlResponse = {
     goal: string;
     scratchpad: string[];
     comment: string;
-    result_output: string;
+    new_text: string;
 };
 

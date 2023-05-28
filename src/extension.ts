@@ -140,22 +140,17 @@ function processCompletion(completion: string, context: string[]) {
 		try {
 			const yamlObj = yaml.parse(completion, { prettyErrors: true, strict: false }) as YamlResponse;
 			// const yamlObj = yaml.load(completion) as YamlResponse;
-			if (!yamlObj.result_output) {
-				yamlObj.result_output = "";
-			}
-			else {
-				// force remove context from result_output
-				yamlObj.result_output = yamlObj.result_output.replace(context[0], '');
-				yamlObj.result_output = yamlObj.result_output.replace(context[2], '');
+			if (!yamlObj.new_text) {
+				yamlObj.new_text = "";
 			}
 
 			if (yamlObj.comment) {
 				vscode.window.showInformationMessage(`mini-ai: ${yamlObj.comment}`);
 			}
 
-			if (yamlObj.result_output) {
+			if (yamlObj.new_text) {
 				editor.edit((editBuilder) => {
-					editBuilder.replace(selection, yamlObj.result_output);
+					editBuilder.replace(selection, yamlObj.new_text);
 				});
 			}
 		}

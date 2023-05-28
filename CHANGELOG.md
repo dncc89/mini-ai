@@ -1,5 +1,9 @@
 # Change Log
 
+## [0.0.6]
+- Added a toggle for chain of thoughts.
+- Modified prompts clearer.
+
 ## [0.0.5]
 - Hotfix for GPT3.5 returning the entire context instead of selected text.
 
