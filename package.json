@@ -3,7 +3,7 @@
   "publisher": "DavidShin",
   "displayName": "mini-ai",
   "description": "Minimalist code assistant for VSCode",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "icon": "public/icon.png",
   "engines": {
     "vscode": "^1.78.0"
@@ -21,6 +21,11 @@
           "type": "boolean",
           "default": false,
           "description": "Use GPT-4(Quality) as default, this flips # prefix to use GPT3.5 Turbo(Speed)"
+        },
+        "mini-ai.contextLength": {
+          "type": "number",
+          "default": 5,
+          "description": "Lines of context before and after the cursor to send to the AI"
         },
         "mini-ai.templates": {
           "type": "array",
@@ -61,6 +66,7 @@
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",
+    "@types/jsonlint": "^1.6.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "16.x",
     "@types/node-fetch": "^2.6.4",
@@ -77,10 +83,14 @@
     "webpack-cli": "^5.0.2"
   },
   "dependencies": {
+    "@types/js-yaml": "^4.0.5",
     "cross-fetch": "^3.1.6",
     "data-uri-to-buffer": "^5.0.1",
+    "js-yaml": "^4.1.0",
+    "jsonlint": "^1.6.3",
     "node-fetch": "^2.6.11",
-    "stream": "^0.0.2"
+    "stream": "^0.0.2",
+    "yaml": "^2.3.1"
   },
   "repository": {
     "type": "git",

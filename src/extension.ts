@@ -1,15 +1,20 @@
 import * as vscode from 'vscode';
-const fetch = require('cross-fetch');
+import * as yaml from 'yaml';
+// import * as yaml from 'js-yaml';
+import { YamlResponse } from './interfaces';
+
+const { getRandomEmoji } = require('./utils');
+const { ChatCompletionMessage, YamlResponse } = require('./interfaces');
+const { generatePayload } = require('./payload');
 const { TextDecoder } = require('util');
 const { Writable } = require('stream');
-
-const outputChannel = vscode.window.createOutputChannel("mini-ai");
+const fetch = require('cross-fetch');
 
 export function activate(context: vscode.ExtensionContext) {
 	// Register the 'mini-ai.command' command and handle user input
 	let disposableCommandAI = vscode.commands.registerCommand('mini-ai.command', async () => {
 		let cancelled = false;
-		let userInput = await vscode.window.showInputBox({
+		let userCommand = await vscode.window.showInputBox({
 			prompt: '🚀 What\'s on your mind?'
 		}).then(value => {
 			if (value === undefined) {
@@ -19,10 +24,11 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 
 		if (!cancelled) {
-			await processAICommand(context, userInput);
+			await processAICommand(context, userCommand);
 		}
 	});
 
+	// Register the 'mini-ai.commandFromTemplates' command and handle user input
 	let disposableCommandFromTemplates = vscode.commands.registerCommand('mini-ai.commandFromTemplates', async () => {
 		const config = vscode.workspace.getConfiguration('mini-ai');
 		let templates: string[] = config.get('templates', []);
@@ -81,7 +87,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() { }
 
-async function processAICommand(context: vscode.ExtensionContext, userInput: string) {
+async function processAICommand(context: vscode.ExtensionContext, userCommand: string) {
 	// Ensure API key exists
 	const apiKey = await context.secrets.get('openAIKey');
 	if (!apiKey) {
@@ -98,123 +104,64 @@ async function processAICommand(context: vscode.ExtensionContext, userInput: str
 		// If the user input starts with '#', toggle between GPT-4 and GPT-3.5-turbo and update the input accordingly
 		const useGPT4 = config.get<boolean>('useGPT4') || false;
 		let gptmodel = useGPT4 ? 'gpt-4' : 'gpt-3.5-turbo';
-		if (userInput.startsWith('#')) {
+		if (userCommand.startsWith('#')) {
 			gptmodel = useGPT4 ? 'gpt-3.5-turbo' : 'gpt-4';
-			userInput = userInput.slice(1);
+			userCommand = userCommand.slice(1);
 		}
-		userInput = userInput.trimStart();
+		userCommand = userCommand.trimStart();
 
-		// Selected text
-		let text: string;
+		// Generate payload
+		let payload = await generatePayload(userCommand, selection.isEmpty);
 
-		const document = editor.document;
+		// Get completion from OpenAI API
+		let completion = await getCompletion(payload, apiKey, gptmodel);
 
-		// Determine the start and end lines based on the selection
-		const startLine = Math.max(selection.start.line - 5, 0);
-		const endLine = Math.min(selection.end.line + 5, document.lineCount - 1);
+		// Parse and output result
+		processCompletion(completion);
+	}
+}
 
-		let textBeforeCursor = '';
-		for (let line = startLine; line < selection.start.line; line++) {
-			textBeforeCursor += document.lineAt(line).text + '\n';
-		}
+function processCompletion(completion: string) {
+	const editor = vscode.window.activeTextEditor;
+	if (editor) {
+		const selection = editor.selection;
 
-		let selectedText = editor.document.getText(selection);
-		selectedText = selection.isEmpty ? '<fill_here>' : `<selection>${selectedText}</selection>`;
+		// remove ```yaml in case GPT3.5 messes up 
+		completion = completion.replace('\`\`\`yaml', '');
+		completion = completion.replace('\`\`\`', '');
+		completion = completion.replace('```yaml', '');
+		completion = completion.replace('```', '');
+		completion = completion.replace('}', '');
+		completion = completion.replace('{', '');
 
-		let textAfterCursor = '';
-		for (let line = selection.end.line + 1; line <= endLine; line++) {
-			textAfterCursor += document.lineAt(line).text + '\n';
-		}
-
-		text = `${textBeforeCursor}\n${selectedText}\n${textAfterCursor}`;
-
-		// Return if text and userinput length is 0
-		if (text.length === 0 && userInput.length === 0) {
+		if (completion.length === 0) {
 			return;
 		}
 
-		// Get completion from OpenAI API
 		try {
-			let payload = generatePayload(text, userInput, selection.isEmpty);
-			let completion = await getCompletion(payload, apiKey, gptmodel);
+			const yamlObj = yaml.parse(completion, { prettyErrors: true, strict: false }) as YamlResponse;
+			// const yamlObj = yaml.load(completion) as YamlResponse;
+			if (!yamlObj.result_output) {
+				yamlObj.result_output = "";
+			}
 
-			if (completion.length > 0) {
-				completion = completion.replace(/```/g, '');
-				completion = completion.replace(/<fill_here>/g, '');
-				completion = completion.replace(/<selection>/g, '');
-				completion = completion.replace(/<\/selection>/g, '');
+			if (yamlObj.comment) {
+				vscode.window.showInformationMessage(`mini-ai: ${yamlObj.comment}`);
+			}
 
+			if (yamlObj.result_output.length > 0) {
 				editor.edit((editBuilder) => {
-					if (selection.isEmpty && !document.lineAt(selection.start.line).isEmptyOrWhitespace) {
-						const position = editor.selection.active;
-						const newPosition = position.with(position.line + 1, 0);
-						editBuilder.insert(newPosition, completion + '\n');
-					}
-					else {
-						editBuilder.replace(selection, completion);
-					}
+					editBuilder.replace(selection, yamlObj.result_output);
 				});
 			}
-		} catch (error: any) {
-			vscode.window.showErrorMessage(error.message);
+		}
+		catch (error: any) {
+			vscode.window.showErrorMessage(`mini-ai: ${error.message} \n ${completion}}`);
 		}
 	}
 }
 
-type ChatCompletionMessage = {
-	role: "system" | "user" | "assistant";
-	content: string
-};
-
-function generatePayload(text: string, userInput: string, isEmpty: boolean = false) {
-	const language = getLanguageID();
-	let messageList = new Array<ChatCompletionMessage>();
-
-	if (isEmpty) {
-		messageList.push({
-			role: 'system',
-			content: `You act as a code generator for ${language}. You will return requested text to fill, nothing else. Do not write explanations, comments, or anything else. You're operating on code editor and your output will be written in the code directly, do not destroy current code with your output. Use comment format if needed.`
-		});
-
-	}
-	else {
-		messageList.push({
-			role: 'system',
-			content: `You act as a code modifier for ${language}. You will return requested code to modify, nothing else. Do not write explanations, comments, or anything else. You're operating on code editor and your output will be written in the code directly, do not destroy current code with your output. Use comment format if needed.`
-		});
-	}
-
-	if (userInput.length > 0) {
-		messageList.push({
-			role: 'user',
-			content: `<Request: ${userInput}> \n<Context: ${text}>`
-		});
-	}
-	else {
-		messageList.push({
-			role: 'user',
-			content: `<Request: Fill the text.> \n<Context: ${text}>`
-		});
-	}
-	return messageList;
-}
-
-function getLanguageID() {
-	const activeEditor = vscode.window.activeTextEditor;
-	// Get the language of the current open file
-	if (activeEditor) {
-		const languageId = activeEditor.document.languageId;
-		return languageId;
-	}
-	return 'PlainText';
-}
-
-const getRandomEmoji = () => {
-	const emojis = ['🤖', '🗿', '🧠', '🤔', '🤯', '👀', '💭', '💡', '🔮', '🎲', '🌀', '🎭', '🍄'];
-	return emojis[Math.floor(Math.random() * emojis.length)];
-};
-
-const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: string, gptmodel: string): Promise<string> => {
+const getCompletion = async (sendMessages: typeof ChatCompletionMessage[], apiKey: string, gptmodel: string): Promise<string> => {
 	try {
 		let content = '';
 		const title = gptmodel === 'gpt-4' ? 'Quality' : 'Speed';
@@ -222,7 +169,7 @@ const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: stri
 		// Initialize progress options
 		const progressOptions: vscode.ProgressOptions = {
 			location: vscode.ProgressLocation.Notification,
-			title: `(${title} Mode)`,
+			title: `mini-ai`,
 			cancellable: true,
 		};
 
@@ -236,6 +183,9 @@ const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: stri
 				},
 				body: JSON.stringify({
 					model: gptmodel,
+					temperature: 0.0,
+					top_p: 0,
+					frequency_penalty: 0,
 					stream: true,
 					messages: sendMessages,
 				}),
@@ -255,7 +205,6 @@ const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: stri
 				}
 			});
 
-			// Function to process buffer
 			const processBuffer = () => {
 				while (true) {
 					const newlineIndex = buffer.indexOf("\n");
@@ -275,15 +224,7 @@ const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: stri
 					const randomEmoji = getRandomEmoji();
 					const newContent = jsonData.choices[0].delta.content;
 					content += newContent;
-
-					if (content.length > 30) {
-						// show last 30 characters 
-						const shortContent = content.slice(content.length - 30);
-						progress.report({ message: `${randomEmoji} ...${shortContent}` });
-					}
-					else {
-						progress.report({ message: `${randomEmoji} ${content}` });
-					}
+					progress.report({ increment: 0.5, message: `(${title} Mode) Thinking... ${randomEmoji}` });
 				}
 			};
 
@@ -293,8 +234,13 @@ const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: stri
 
 				// On 'finish' event, resolve the promise with the content
 				writable.on("finish", () => {
-					progress.report({ increment: 100 });
-					resolve(content || '');
+					if (token.isCancellationRequested) {
+						progress.report({ increment: 100 });
+						resolve('');
+					}
+					else {
+						resolve(content || '');
+					}
 				});
 
 				// On 'error' event, reject the promise
@@ -304,7 +250,7 @@ const getCompletion = async (sendMessages: ChatCompletionMessage[], apiKey: stri
 			});
 		});
 	} catch (error: any) {
-		vscode.window.showErrorMessage('Error:', error.message);
+		vscode.window.showErrorMessage('mini-ai error:', error.message);
 		return '';
 	}
 };
