@@ -22,6 +22,11 @@
           "default": false,
           "description": "Use GPT-4(Quality) as default, this flips # prefix to use GPT3.5 Turbo(Speed)"
         },
+        "mini-ai.useChainOfThoughts": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use chain of thoughts method, this will improve the quality of the results but will take longer to generate"
+        },
         "mini-ai.contextLength": {
           "type": "number",
           "default": 5,

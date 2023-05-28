@@ -3,7 +3,7 @@ import * as yaml from 'yaml';
 // import * as yaml from 'js-yaml';
 import { YamlResponse } from './interfaces';
 
-const { getRandomEmoji } = require('./utils');
+const { getContext, getRandomEmoji } = require('./utils');
 const { ChatCompletionMessage, YamlResponse } = require('./interfaces');
 const { generatePayload } = require('./payload');
 const { TextDecoder } = require('util');
@@ -109,19 +109,20 @@ async function processAICommand(context: vscode.ExtensionContext, userCommand: s
 			userCommand = userCommand.slice(1);
 		}
 		userCommand = userCommand.trimStart();
+		const context = getContext();
 
 		// Generate payload
-		let payload = await generatePayload(userCommand, selection.isEmpty);
+		let payload = await generatePayload(userCommand, selection.isEmpty, context);
 
 		// Get completion from OpenAI API
 		let completion = await getCompletion(payload, apiKey, gptmodel);
 
 		// Parse and output result
-		processCompletion(completion);
+		processCompletion(completion, context);
 	}
 }
 
-function processCompletion(completion: string) {
+function processCompletion(completion: string, context: string[]) {
 	const editor = vscode.window.activeTextEditor;
 	if (editor) {
 		const selection = editor.selection;
@@ -141,6 +142,11 @@ function processCompletion(completion: string) {
 			// const yamlObj = yaml.load(completion) as YamlResponse;
 			if (!yamlObj.result_output) {
 				yamlObj.result_output = "";
+			}
+			else {
+				// force remove context from result_output
+				yamlObj.result_output = yamlObj.result_output.replace(context[0], '');
+				yamlObj.result_output = yamlObj.result_output.replace(context[2], '');
 			}
 
 			if (yamlObj.comment) {
