@@ -1,5 +1,8 @@
 # Change Log
 
+## [0.0.7]
+- Better context understanding for GPT-3.5 Turbo.
+
 ## [0.0.6]
 - Added a toggle for chain of thoughts.
 - Modified prompts clearer.

@@ -127,12 +127,6 @@ function processCompletion(completion: string, context: string[]) {
 	if (editor) {
 		const selection = editor.selection;
 
-		// remove ```yaml in case GPT3.5 messes up 
-		completion = completion.replace('\`\`\`yaml', '');
-		completion = completion.replace('\`\`\`', '');
-		completion = completion.replace('```yaml', '');
-		completion = completion.replace('```', '');
-
 		if (completion.length === 0) {
 			return;
 		}
@@ -181,7 +175,6 @@ const getCompletion = async (sendMessages: typeof ChatCompletionMessage[], apiKe
 				body: JSON.stringify({
 					model: gptmodel,
 					temperature: 0.0,
-					top_p: 0,
 					frequency_penalty: 0,
 					stream: true,
 					messages: sendMessages,
@@ -221,7 +214,8 @@ const getCompletion = async (sendMessages: typeof ChatCompletionMessage[], apiKe
 					const randomEmoji = getRandomEmoji();
 					const newContent = jsonData.choices[0].delta.content;
 					content += newContent;
-					progress.report({ increment: 0.5, message: `(${title} Mode) Thinking... ${randomEmoji}` });
+					const shortContent = content.slice(content.length - 30);
+					progress.report({ increment: 0.5, message: `(${title} Mode) ${randomEmoji} ${shortContent}` });
 				}
 			};
 
